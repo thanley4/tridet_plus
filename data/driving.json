@@ -1,0 +1,1 @@
+{"version": "driving-30fps", "database": {"test_2026-09-24-17-20-58": {"subset": "Train", "fps": 30, "duration": 1, "annotations": [{"label": "fixation", "segment": [0.0, 0.9666666666666667], "label_id": 2}]}, "test_2026-09-25-17-04-59": {"subset": "Train", "fps": 30, "duration": 1, "annotations": [{"label": "fixation", "segment": [0.0, 0.9666666666666667], "label_id": 2}]}}}

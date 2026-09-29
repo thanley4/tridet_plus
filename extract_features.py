@@ -83,5 +83,7 @@ for sequence in sequences:
     
     # Save the features
     os.makedirs(os.path.join(DESTINATION_PATH, sequence), exist_ok=True)
-    features_path = os.path.join(DESTINATION_PATH, sequence, "features.pt")
-    torch.save(features, features_path)
+    torch_features_path = os.path.join(DESTINATION_PATH, sequence, "features.pt")
+    numpy_features_path = os.path.join(DESTINATION_PATH, sequence, "features.npy")
+    torch.save(features, torch_features_path)
+    np.save(numpy_features_path, features.cpu().numpy())
