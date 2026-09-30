@@ -81,9 +81,13 @@ for sequence in sequences:
         
     print(f"Extracted features shape: {features.shape}\n")
     
+    # Unsqueeze the features
+    features = features.unsqueeze(0)
+    
     # Save the features
     os.makedirs(os.path.join(DESTINATION_PATH, sequence), exist_ok=True)
     torch_features_path = os.path.join(DESTINATION_PATH, sequence, "features.pt")
-    numpy_features_path = os.path.join(DESTINATION_PATH, sequence, "features.npy")
+    numpy_features_path = os.path.join(DESTINATION_PATH, sequence, "features.npz")
+    
     torch.save(features, torch_features_path)
-    np.save(numpy_features_path, features.cpu().numpy())
+    np.savez(numpy_features_path, feature=features.cpu().numpy())

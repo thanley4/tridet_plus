@@ -38,12 +38,12 @@ class DrivingDataset(Dataset):
         assert os.path.exists(feat_folder) and os.path.exists(json_file)
         assert isinstance(split, tuple) or isinstance(split, list)
         assert crop_ratio == None or len(crop_ratio) == 2
-        self.feat_folder = "Z:/data/driver_monitoring/features"
+        self.feat_folder = feat_folder
         if file_prefix is not None:
             self.file_prefix = file_prefix
         else:
             self.file_prefix = ''
-        self.file_ext = "features.npy"
+        self.file_ext = file_ext
         self.json_file = json_file
 
         # split / training mode
@@ -73,7 +73,7 @@ class DrivingDataset(Dataset):
 
         # dataset specific attributes
         self.db_attributes = {
-            'dataset_name': 'thumos-14',
+            'dataset_name': 'driving',
             'tiou_thresholds': np.linspace(0.1, 0.9, 9),
             # we will mask out cliff diving
             'empty_label_ids': [],

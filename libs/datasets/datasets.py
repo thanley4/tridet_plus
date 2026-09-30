@@ -17,6 +17,10 @@ def make_dataset(name, is_training, split, **kwargs):
    return dataset
 
 def make_data_loader(dataset, is_training, generator, batch_size, num_workers):
+    
+    print(f"dataset: {dataset.__class__.__name__}, is_training: {is_training}, batch_size: {batch_size}, num_workers: {num_workers}")
+    print(f"dataset length: {len(dataset)}")
+    
     """
         A simple dataloder builder
     """
