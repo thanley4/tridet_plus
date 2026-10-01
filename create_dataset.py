@@ -39,7 +39,7 @@ dataset = {
 }
 
 # Iterate through each sequence and process the events
-for sequence in sequences:
+for i, sequence in enumerate(sequences):
 
     print(f"Processing sequence: {sequence}")
     blinks = np.load(os.path.join(dataset_path, sequence, "blinks.npz"))
@@ -47,7 +47,11 @@ for sequence in sequences:
     
     # Initialize the sequence entry in the dataset dictionary
     dataset["database"][sequence] = {}
-    dataset["database"][sequence]["subset"] = "Train"
+    
+    if i < 5:
+        dataset["database"][sequence]["subset"] = "Train"
+    else:
+        dataset["database"][sequence]["subset"] = "Test"
     dataset["database"][sequence]["fps"] = FPS 
     dataset["database"][sequence]["duration"] = int(blinks[key].shape[0] / FPS)
     dataset["database"][sequence]["annotations"] = []
