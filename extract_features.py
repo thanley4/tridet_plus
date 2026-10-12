@@ -27,14 +27,22 @@ BATCH_SIZE = 32
 WINDOW = 16
 STRIDE = 8
 
-
-
+# Iterate through sequences
 sequences = os.listdir(SOURCE_PATH)
 print(f"Found {len(sequences)} sequences in the dataset. \n")
-
 for sequence in sequences:
-    
+    t = time.time_ns()
     print(f"Processing sequence: {sequence}")
+    
+    # Check if features already exist
+    torch_features_path = os.path.join(DESTINATION_PATH, sequence, "features.pt")
+    numpy_features_path = os.path.join(DESTINATION_PATH, sequence, "features.npz")
+    
+    if os.path.exists(torch_features_path) and os.path.exists(numpy_features_path):
+        print(f"Features already exist for sequence: {sequence}. Skipping...\n")
+        continue
+    
+    # Load PNGs
     pngs = os.listdir(os.path.join(SOURCE_PATH, sequence, TARGET_MODALITY))
     print(f"Found {len(pngs)} PNG files in sequence: {sequence}")
     
@@ -79,15 +87,14 @@ for sequence in sequences:
             
         features = torch.cat((features, outputs), dim=0)
         
-    print(f"Extracted features shape: {features.shape}\n")
+    print(f"Extracted features shape: {features.shape}")
     
     # Unsqueeze the features
     features = features.unsqueeze(0)
     
     # Save the features
     os.makedirs(os.path.join(DESTINATION_PATH, sequence), exist_ok=True)
-    torch_features_path = os.path.join(DESTINATION_PATH, sequence, "features.pt")
-    numpy_features_path = os.path.join(DESTINATION_PATH, sequence, "features.npz")
-    
     torch.save(features, torch_features_path)
     np.savez(numpy_features_path, feature=features.cpu().numpy())
+    
+    print(f"Saved features for sequence: {sequence} in {(time.time_ns() - t) / 1e9} s\n")

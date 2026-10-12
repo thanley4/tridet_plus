@@ -25,11 +25,13 @@ def find_events(array):
     return events
 
 
-dataset_path = "Z:/data/driver_monitoring/raw"
-json_path = "tridet_plus/data/driving.json"
+DATASET_PATH = "Z:/data/driver_monitoring/raw"
+JSON_PATH = "tridet_plus/data/driving.json"
 FPS = 30
+TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary"]
+TEST_ASSETS = ["olivia", "patrick"]
 
-sequences = os.listdir(dataset_path)
+sequences = os.listdir(DATASET_PATH)
 print(f"Found {len(sequences)} sequences in the dataset.")
 
 # Initialise the dataset dictionary
@@ -42,23 +44,28 @@ dataset = {
 for i, sequence in enumerate(sequences):
 
     print(f"Processing sequence: {sequence}")
-    blinks = np.load(os.path.join(dataset_path, sequence, "blinks.npz"))
+    blinks = np.load(os.path.join(DATASET_PATH, sequence, "blinks.npz"))
     key = blinks.files[0]
+    asset = sequence.split("_")[0]
     
     # Initialize the sequence entry in the dataset dictionary
     dataset["database"][sequence] = {}
     
-    if i < 5:
+    if asset in TRAIN_ASSETS:
         dataset["database"][sequence]["subset"] = "Train"
-    else:
+    elif asset in TEST_ASSETS:
         dataset["database"][sequence]["subset"] = "Test"
+    else:
+        print(f"Warning: Asset {asset} not found in TRAIN or TEST lists. Assigning to 'Unknown' subset.")
+        dataset["database"][sequence]["subset"] = "Unknown"
+        
     dataset["database"][sequence]["fps"] = FPS 
     dataset["database"][sequence]["duration"] = int(blinks[key].shape[0] / FPS)
     dataset["database"][sequence]["annotations"] = []
     
     # Classes: 0 = blink, 1 = fidgeting, 2 = yawning, 3 = fixation, 4 = microsleep, 5 = head_nod
     # Store the blink events in the dataset dictionary
-    blinks = np.load(os.path.join(dataset_path, sequence, "blinks.npz"))[key]
+    blinks = np.load(os.path.join(DATASET_PATH, sequence, "blinks.npz"))[key]
     blink_events = find_events(blinks)
     for start, end in blink_events:
         dataset["database"][sequence]["annotations"].append({
@@ -119,5 +126,5 @@ for i, sequence in enumerate(sequences):
     
     
 # Save the dataset as a JSON file
-with open(json_path, "w") as f:
+with open(JSON_PATH, "w") as f:
     json.dump(dataset, f)
