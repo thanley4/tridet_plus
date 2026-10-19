@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import warnings
 
@@ -18,17 +19,27 @@ processor = VideoMAEImageProcessor.from_pretrained("OpenGVLab/VideoMAEv2-giant")
 model = AutoModel.from_pretrained('OpenGVLab/VideoMAEv2-giant', config=config, trust_remote_code=True)
 model = model.to("cuda").eval()
 
+if sys.platform == "win32":
+    NAS_PATH = "Z:"
+    BATCH_SIZE = 32
+elif sys.platform == "linux":
+    NAS_PATH = "/media/Z"
+    BATCH_SIZE = 8
+else:
+    print(f"Unsupported platform: {sys.platform}")
+    exit()
+
 # Set parameters
-SOURCE_PATH = "Z:/data/driver_monitoring/raw"
-DESTINATION_PATH = "Z:/data/driver_monitoring/features"
+SOURCE_PATH = os.path.join(NAS_PATH, "data/driver_monitoring/raw")
+DESTINATION_PATH = os.path.join(NAS_PATH, "data/driver_monitoring/features_cropped")
 TARGET_MODALITY = "RGB"
 DIMENSIONS = (224, 224)
-BATCH_SIZE = 32
 WINDOW = 16
 STRIDE = 8
 
 # Iterate through sequences
 sequences = os.listdir(SOURCE_PATH)
+sequences = np.random.permutation(sequences)
 print(f"Found {len(sequences)} sequences in the dataset. \n")
 for sequence in sequences:
     t = time.time_ns()
@@ -46,6 +57,10 @@ for sequence in sequences:
     pngs = os.listdir(os.path.join(SOURCE_PATH, sequence, TARGET_MODALITY))
     print(f"Found {len(pngs)} PNG files in sequence: {sequence}")
     
+    if len(pngs) != 1800:
+        print(f"Warning: Expected 1800 PNG files, but found {len(pngs)} in sequence: {sequence}. Skipping...\n")
+        continue
+    
     # Initialize the video array
     video = np.zeros((len(pngs), *DIMENSIONS, 3), dtype=np.uint8)
     
@@ -57,7 +72,10 @@ for sequence in sequences:
         
         png_path = os.path.join(SOURCE_PATH, sequence, TARGET_MODALITY, png)
         frame = cv2.imread(png_path)
-        frame = cv2.resize(frame, DIMENSIONS)
+        frame_height, frame_width = frame.shape[:2]
+        y_start = (frame_height - DIMENSIONS[1]) // 2
+        x_start = (frame_width - DIMENSIONS[0]) // 2
+        frame = frame[y_start : y_start + DIMENSIONS[1], x_start : x_start + DIMENSIONS[0]]
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = frame.astype(np.uint8)
         video[i] = frame
