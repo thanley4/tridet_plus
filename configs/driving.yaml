@@ -3,7 +3,7 @@ train_split: [ 'train' ]
 val_split: [ 'test' ]
 dataset: {
   json_file: ./data/driving.json,
-  feat_folder: Z:/data/driver_monitoring/features,
+  feat_folder: Z:/data/driver_monitoring/features_cropped,
   file_prefix: ~,
   file_ext: /features.npz,
   # num_classes: 6,
