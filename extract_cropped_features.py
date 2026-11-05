@@ -53,32 +53,15 @@ for sequence in sequences:
         print(f"Features already exist for sequence: {sequence}. Skipping...\n")
         continue
     
-    # Load PNGs
-    pngs = os.listdir(os.path.join(SOURCE_PATH, sequence, TARGET_MODALITY))
-    print(f"Found {len(pngs)} PNG files in sequence: {sequence}")
+    # Load the video frames
+    video = np.load(os.path.join(SOURCE_PATH, sequence, "RGB.npy"))
     
-    if len(pngs) != 1800:
-        print(f"Warning: Expected 1800 PNG files, but found {len(pngs)} in sequence: {sequence}. Skipping...\n")
-        continue
-    
-    # Initialize the video array
-    video = np.zeros((len(pngs), *DIMENSIONS, 3), dtype=np.uint8)
-    
-    # Load the pngs
-    for i, png in enumerate(pngs):
-        
-        if ".png" not in png:
-            continue
-        
-        png_path = os.path.join(SOURCE_PATH, sequence, TARGET_MODALITY, png)
-        frame = cv2.imread(png_path)
-        frame_height, frame_width = frame.shape[:2]
-        y_start = (frame_height - DIMENSIONS[1]) // 2
-        x_start = (frame_width - DIMENSIONS[0]) // 2
-        frame = frame[y_start : y_start + DIMENSIONS[1], x_start : x_start + DIMENSIONS[0]]
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = frame.astype(np.uint8)
-        video[i] = frame
+    # Crop the video frames to the target dimensions
+    frame = video[0]
+    frame_height, frame_width = frame.shape[:2]
+    y_start = (frame_height - DIMENSIONS[1]) // 2
+    x_start = (frame_width - DIMENSIONS[0]) // 2
+    video = video[:, y_start : y_start + DIMENSIONS[1], x_start : x_start + DIMENSIONS[0]]
     
     # Compute starting indices for sliding windows
     starting_indices = list(range(0, video.shape[0] - WINDOW + 1, STRIDE))
