@@ -129,4 +129,3 @@ for sequence in sequences:
                 np.savez(numpy_features_path, feature=features.cpu().numpy())
                 
     print(f"Saved features for sequence: {sequence} in {(time.time_ns() - t) / 1e9} s\n")
-    break
