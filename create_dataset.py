@@ -25,14 +25,19 @@ def find_events(array):
     return events
 
 
+FEATURES_PATH = "Z:/data/driver_monitoring/features_augmented"
 DATASET_PATH = "Z:/data/driver_monitoring/raw"
 JSON_PATH = "tridet_plus/data/driving.json"
 FPS = 30
-TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary"]
-TEST_ASSETS = ["olivia", "patrick"]
+# TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary"]
+# TEST_ASSETS = ["olivia", "patrick"]
 
-sequences = os.listdir(DATASET_PATH)
-print(f"Found {len(sequences)} sequences in the dataset.")
+TRAIN_ASSETS = ["john"]
+TEST_ASSETS = ["john"]
+
+
+feature_sequences = os.listdir(FEATURES_PATH)
+print(f"Found {len(feature_sequences)} sequences in the dataset.")
 
 # Initialise the dataset dictionary
 dataset = {
@@ -41,7 +46,13 @@ dataset = {
 }
 
 # Iterate through each sequence and process the events
-for i, sequence in enumerate(sequences):
+for i, sequence_features in enumerate(feature_sequences):
+
+    offset = int(sequence_features.split("-")[-1])
+    y_start = int(sequence_features.split("-")[-2])
+    x_start = int(sequence_features.split("-")[-3])
+    flip = int(sequence_features.split("-")[-4])
+    sequence = sequence_features.split(f"-{flip}-{x_start}-{y_start}-{offset}")[0]
 
     print(f"Processing sequence: {sequence}")
     blinks = np.load(os.path.join(DATASET_PATH, sequence, "blinks.npz"))
@@ -49,28 +60,28 @@ for i, sequence in enumerate(sequences):
     asset = sequence.split("_")[0]
     
     # Initialize the sequence entry in the dataset dictionary
-    dataset["database"][sequence] = {}
+    dataset["database"][sequence_features] = {}
     
     if asset in TRAIN_ASSETS:
-        dataset["database"][sequence]["subset"] = "Train"
+        dataset["database"][sequence_features]["subset"] = "Train"
     elif asset in TEST_ASSETS:
-        dataset["database"][sequence]["subset"] = "Test"
+        dataset["database"][sequence_features]["subset"] = "Test"
     else:
         print(f"Warning: Asset {asset} not found in TRAIN or TEST lists. Assigning to 'Unknown' subset.")
-        dataset["database"][sequence]["subset"] = "Unknown"
+        dataset["database"][sequence_features]["subset"] = "Unknown"
         
-    dataset["database"][sequence]["fps"] = FPS 
-    dataset["database"][sequence]["duration"] = int(blinks[key].shape[0] / FPS)
-    dataset["database"][sequence]["annotations"] = []
+    dataset["database"][sequence_features]["fps"] = FPS 
+    dataset["database"][sequence_features]["duration"] = int(blinks[key].shape[0] / FPS)
+    dataset["database"][sequence_features]["annotations"] = []
     
     # Classes: 0 = blink, 1 = fidgeting, 2 = yawning, 3 = fixation, 4 = microsleep, 5 = head_nod
     # Store the blink events in the dataset dictionary
     blinks = np.load(os.path.join(DATASET_PATH, sequence, "blinks.npz"))[key]
     blink_events = find_events(blinks)
     for start, end in blink_events:
-        dataset["database"][sequence]["annotations"].append({
+        dataset["database"][sequence_features]["annotations"].append({
             "label": "blink",
-            "segment": [start / FPS, end / FPS],
+            "segment": [(start - offset) / FPS, (end - offset) / FPS],
             "label_id": 0
         })
     
@@ -123,7 +134,6 @@ for i, sequence in enumerate(sequences):
     #         "segment": [start / FPS, end / FPS],
     #         "label_id": 5
     #     })
-    
     
 # Save the dataset as a JSON file
 with open(JSON_PATH, "w") as f:
