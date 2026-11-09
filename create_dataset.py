@@ -29,11 +29,8 @@ FEATURES_PATH = "Z:/data/driver_monitoring/features_augmented"
 DATASET_PATH = "Z:/data/driver_monitoring/raw"
 JSON_PATH = "tridet_plus/data/driving.json"
 FPS = 30
-# TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary"]
-# TEST_ASSETS = ["olivia", "patrick"]
-
-TRAIN_ASSETS = ["john"]
-TEST_ASSETS = ["john"]
+TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary"]
+TEST_ASSETS = ["olivia", "patrick"]
 
 
 feature_sequences = os.listdir(FEATURES_PATH)
