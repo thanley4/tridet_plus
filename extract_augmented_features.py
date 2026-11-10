@@ -50,6 +50,9 @@ for sequence in sequences:
     # Load the frames
     frames = np.load(os.path.join(SOURCE_PATH, sequence, "RGB.npy"))
     
+    # Seed for reproducibility
+    random.seed(sequence)
+    
     # Flip the frames
     for flip in range(2):
     
