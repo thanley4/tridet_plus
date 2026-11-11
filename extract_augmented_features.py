@@ -48,17 +48,14 @@ for sequence in sequences:
     print(f"Processing sequence: {sequence}")
     
     # Load the frames
-    frames = np.load(os.path.join(SOURCE_PATH, sequence, "RGB.npy"))
+    # frames = np.load(os.path.join(SOURCE_PATH, sequence, "RGB.npy"))
+    frames = None
     
     # Seed for reproducibility
     random.seed(sequence)
     
     # Flip the frames
     for flip in range(2):
-    
-        flipped_frames = frames.copy()
-        if flip:
-            flipped_frames = np.flip(flipped_frames, axis=2)
         
         # 4x staggered windows with random crops
         for stagger in range(N_STAGGERED_WINDOWS):
@@ -71,9 +68,6 @@ for sequence in sequences:
             y_start = ((ORIGINAL_DIMENSIONS[1] - TARGET_DIMENSIONS[1]) // 2) + y_offset
             x_start = ((ORIGINAL_DIMENSIONS[0] - TARGET_DIMENSIONS[0]) // 2) + x_offset
             
-            # Crop the frames
-            cropped_frames = flipped_frames[:, y_start:y_start + TARGET_DIMENSIONS[1], x_start:x_start + TARGET_DIMENSIONS[0], :]
-            
             # Check that the number of staggered windows is less than the stride
             assert N_STAGGERED_WINDOWS < STRIDE, "Number of staggered windows must be less than the stride."
             
@@ -84,9 +78,22 @@ for sequence in sequences:
             torch_features_path = os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}-{offset}", "features.pt")
             numpy_features_path = os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}-{offset}", "features.npz")
             
+            # Skip existing features
             if os.path.exists(torch_features_path) and os.path.exists(numpy_features_path):
                 print(f"Features already exist for sequence: {sequence}-{flip}-{x_start}-{y_start}-{offset}. Skipping...")
                 continue
+            
+            # Load the frames if not already loaded
+            if frames is None:
+                frames = np.load(os.path.join(SOURCE_PATH, sequence, "RGB.npy"))
+            
+            # Flip the frames
+            flipped_frames = frames.copy()
+            if flip:
+                flipped_frames = np.flip(frames, axis=2)
+                
+            # Crop the frames
+            cropped_frames = flipped_frames[:, y_start:y_start + TARGET_DIMENSIONS[1], x_start:x_start + TARGET_DIMENSIONS[0], :]
             
             # Trim the cropped frames
             input_frames = cropped_frames[offset :]
