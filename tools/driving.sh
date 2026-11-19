@@ -1,6 +1,10 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=$1 python train.py ./configs/driving.yaml --ckpt-freq 1 --output pretrain
-# echo "start testing14..."
-CUDA_VISIBLE_DEVICES=$1 python eval.py ./configs/driving.yaml ckpt/driving_pretrain/epoch_014.pth.tar
+# Train
+python train.py ./configs/driving.yaml --ckpt-freq 5 --output pretrain
 
+# Evaluate
+python eval.py ./configs/driving.yaml ckpt/driving_pretrain/epoch_049.pth.tar
+
+# Evaluate all epochs
+python eval_all_epochs.py ./configs/driving.yaml ckpt/driving_pretrain/
