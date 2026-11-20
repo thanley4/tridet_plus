@@ -4,6 +4,7 @@ import sys
 import time
 import warnings
 
+import cv2
 import numpy as np
 import torch
 from transformers import AutoConfig, AutoModel, VideoMAEImageProcessor
@@ -36,8 +37,8 @@ TARGET_MODALITY = "RGB"
 ORIGINAL_DIMENSIONS = (512, 512)
 TARGET_DIMENSIONS = (224, 224)
 WINDOW = 16
-STRIDE = 8
-N_STAGGERED_WINDOWS = 4
+STRIDE = 2
+N_RANDOM_CROPS = 1
 
 # Iterate through sequences
 sequences = os.listdir(SOURCE_PATH)
@@ -48,7 +49,6 @@ for sequence in sequences:
     print(f"Processing sequence: {sequence}")
     
     # Load the frames
-    # frames = np.load(os.path.join(SOURCE_PATH, sequence, "RGB.npy"))
     frames = None
     
     # Seed for reproducibility
@@ -58,7 +58,7 @@ for sequence in sequences:
     for flip in range(2):
         
         # 4x staggered windows with random crops
-        for stagger in range(N_STAGGERED_WINDOWS):
+        for crop in range(N_RANDOM_CROPS):
             
             # Random offsets for cropping
             x_offset = random.randint(-32, 32)
@@ -68,19 +68,13 @@ for sequence in sequences:
             y_start = ((ORIGINAL_DIMENSIONS[1] - TARGET_DIMENSIONS[1]) // 2) + y_offset
             x_start = ((ORIGINAL_DIMENSIONS[0] - TARGET_DIMENSIONS[0]) // 2) + x_offset
             
-            # Check that the number of staggered windows is less than the stride
-            assert N_STAGGERED_WINDOWS < STRIDE, "Number of staggered windows must be less than the stride."
-            
-            # Calculate the offset for the staggered windows
-            offset = stagger * (STRIDE // N_STAGGERED_WINDOWS)
-            
             # Create output paths
-            torch_features_path = os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}-{offset}", "features.pt")
-            numpy_features_path = os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}-{offset}", "features.npz")
+            torch_features_path = os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}", "features.pt")
+            numpy_features_path = os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}", "features.npz")
             
             # Skip existing features
             if os.path.exists(torch_features_path) and os.path.exists(numpy_features_path):
-                print(f"Features already exist for sequence: {sequence}-{flip}-{x_start}-{y_start}-{offset}. Skipping...")
+                print(f"Features already exist for sequence: {sequence}-{flip}-{x_start}-{y_start}. Skipping...")
                 continue
             
             # Load the frames if not already loaded
@@ -93,10 +87,12 @@ for sequence in sequences:
                 flipped_frames = np.flip(frames, axis=2)
                 
             # Crop the frames
-            cropped_frames = flipped_frames[:, y_start:y_start + TARGET_DIMENSIONS[1], x_start:x_start + TARGET_DIMENSIONS[0], :]
+            input_frames = flipped_frames[:, y_start:y_start + TARGET_DIMENSIONS[1], x_start:x_start + TARGET_DIMENSIONS[0], :]
             
-            # Trim the cropped frames
-            input_frames = cropped_frames[offset :]
+            # View the first cropped frame for verification
+            # cv2.imshow("Cropped Frame", input_frames[0])
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
             
             # Compute starting indices for sliding windows
             starting_indices = list(range(0, input_frames.shape[0] - WINDOW + 1, STRIDE))
@@ -130,7 +126,7 @@ for sequence in sequences:
             features = features.unsqueeze(0)
             
             # Save the features
-            os.makedirs(os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}-{offset}"), exist_ok=True)
+            os.makedirs(os.path.join(DESTINATION_PATH, f"{sequence}-{flip}-{x_start}-{y_start}"), exist_ok=True)
             torch.save(features, torch_features_path)
             np.savez(numpy_features_path, feature=features.cpu().numpy())
                 

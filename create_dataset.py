@@ -29,6 +29,8 @@ FEATURES_PATH = "Z:/data/driver_monitoring/features_augmented"
 DATASET_PATH = "Z:/data/driver_monitoring/raw"
 JSON_PATH = "tridet_plus/data/driving.json"
 FPS = 30
+# TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary", "olivia", "patrick"]
+# TEST_ASSETS = []
 TRAIN_ASSETS = ["bridget", "grace", "james", "john", "liam", "mary"]
 TEST_ASSETS = ["olivia", "patrick"]
 
@@ -44,12 +46,14 @@ dataset = {
 
 # Iterate through each sequence and process the events
 for i, sequence_features in enumerate(feature_sequences):
+    
+    if i > 250:
+        break
 
-    offset = int(sequence_features.split("-")[-1])
-    y_start = int(sequence_features.split("-")[-2])
-    x_start = int(sequence_features.split("-")[-3])
-    flip = int(sequence_features.split("-")[-4])
-    sequence = sequence_features.split(f"-{flip}-{x_start}-{y_start}-{offset}")[0]
+    y_start = int(sequence_features.split("-")[-1])
+    x_start = int(sequence_features.split("-")[-2])
+    flip = int(sequence_features.split("-")[-3])
+    sequence = sequence_features.split(f"-{flip}-{x_start}-{y_start}")[0]
 
     print(f"Processing sequence: {sequence}")
     blinks = np.load(os.path.join(DATASET_PATH, sequence, "blinks.npz"))
@@ -59,13 +63,12 @@ for i, sequence_features in enumerate(feature_sequences):
     # Initialize the sequence entry in the dataset dictionary
     dataset["database"][sequence_features] = {}
     
-    if asset in TRAIN_ASSETS:
+    if asset in TRAIN_ASSETS and i < 200:
         dataset["database"][sequence_features]["subset"] = "Train"
-    elif asset in TEST_ASSETS:
+    elif asset in TEST_ASSETS and i < 200:
         dataset["database"][sequence_features]["subset"] = "Test"
     else:
-        print(f"Warning: Asset {asset} not found in TRAIN or TEST lists. Assigning to 'Unknown' subset.")
-        dataset["database"][sequence_features]["subset"] = "Unknown"
+        dataset["database"][sequence_features]["subset"] = "Unseen"
         
     dataset["database"][sequence_features]["fps"] = FPS 
     dataset["database"][sequence_features]["duration"] = int(blinks[key].shape[0] / FPS)
@@ -78,59 +81,59 @@ for i, sequence_features in enumerate(feature_sequences):
     for start, end in blink_events:
         dataset["database"][sequence_features]["annotations"].append({
             "label": "blink",
-            "segment": [(start - offset) / FPS, (end - offset) / FPS],
+            "segment": [start / FPS, end / FPS],
             "label_id": 0
         })
     
-    # # Store the fidgeting events in the dataset dictionary
-    # fidgeting = np.load(os.path.join(dataset_path, sequence, "fidgeting.npz"))[key]
-    # fidget_events = find_events(fidgeting)
-    # for start, end in fidget_events:
-    #     dataset["database"][sequence]["annotations"].append({
-    #         "label": "fidgeting",
-    #         "segment": [start / FPS, end / FPS],
-    #         "label_id": 1
-    #     })
+    # Store the fidgeting events in the dataset dictionary
+    fidgeting = np.load(os.path.join(DATASET_PATH, sequence, "fidgeting.npz"))[key]
+    fidget_events = find_events(fidgeting)
+    for start, end in fidget_events:
+        dataset["database"][sequence_features]["annotations"].append({
+            "label": "fidgeting",
+            "segment": [start / FPS, end / FPS],
+            "label_id": 1
+        })
         
-    # # Store the yawning events in the dataset dictionary
-    # yawns = np.load(os.path.join(dataset_path, sequence, "yawns.npz"))[key]
-    # yawn_events = find_events(yawns)
-    # for start, end in yawn_events:
-    #     dataset["database"][sequence]["annotations"].append({
-    #         "label": "yawn",
-    #         "segment": [start / FPS, end / FPS],
-    #         "label_id": 2
-    #     })
+    # Store the yawning events in the dataset dictionary
+    yawns = np.load(os.path.join(DATASET_PATH, sequence, "yawns.npz"))[key]
+    yawn_events = find_events(yawns)
+    for start, end in yawn_events:
+        dataset["database"][sequence_features]["annotations"].append({
+            "label": "yawn",
+            "segment": [start / FPS, end / FPS],
+            "label_id": 2
+        })
     
-    # # Store the gaze fixation events in the dataset dictionary
-    # gaze_fixations = np.load(os.path.join(dataset_path, sequence, "gaze_fixations.npz"))[key]
-    # fixation_events = find_events(gaze_fixations)
-    # for start, end in fixation_events:
-    #     dataset["database"][sequence]["annotations"].append({
-    #         "label": "fixation",
-    #         "segment": [start / FPS, end / FPS],
-    #         "label_id": 3
-    #     })
+    # Store the gaze fixation events in the dataset dictionary
+    gaze_fixations = np.load(os.path.join(DATASET_PATH, sequence, "gaze_fixations.npz"))[key]
+    fixation_events = find_events(gaze_fixations)
+    for start, end in fixation_events:
+        dataset["database"][sequence_features]["annotations"].append({
+            "label": "fixation",
+            "segment": [start / FPS, end / FPS],
+            "label_id": 3
+        })
     
-    # # Store the microsleep events in the dataset dictionary
-    # microsleeps = np.load(os.path.join(dataset_path, sequence, "microsleeps.npz"))[key]
-    # microsleep_events = find_events(microsleeps)
-    # for start, end in microsleep_events:
-    #     dataset["database"][sequence]["annotations"].append({
-    #         "label": "microsleep",
-    #         "segment": [start / FPS, end / FPS],
-    #         "label_id": 4
-    #     })
+    # Store the microsleep events in the dataset dictionary
+    microsleeps = np.load(os.path.join(DATASET_PATH, sequence, "microsleeps.npz"))[key]
+    microsleep_events = find_events(microsleeps)
+    for start, end in microsleep_events:
+        dataset["database"][sequence_features]["annotations"].append({
+            "label": "microsleep",
+            "segment": [start / FPS, end / FPS],
+            "label_id": 4
+        })
     
-    # # Store the head nod events in the dataset dictionary
-    # head_nods = np.load(os.path.join(dataset_path, sequence, "head_nods.npz"))[key]
-    # head_nod_events = find_events(head_nods)
-    # for start, end in head_nod_events:
-    #     dataset["database"][sequence]["annotations"].append({
-    #         "label": "head_nod",
-    #         "segment": [start / FPS, end / FPS],
-    #         "label_id": 5
-    #     })
+    # Store the head nod events in the dataset dictionary
+    head_nods = np.load(os.path.join(DATASET_PATH, sequence, "head_nods.npz"))[key]
+    head_nod_events = find_events(head_nods)
+    for start, end in head_nod_events:
+        dataset["database"][sequence_features]["annotations"].append({
+            "label": "head_nod",
+            "segment": [start / FPS, end / FPS],
+            "label_id": 5
+        })
     
 # Save the dataset as a JSON file
 with open(JSON_PATH, "w") as f:

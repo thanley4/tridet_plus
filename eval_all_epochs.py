@@ -141,11 +141,34 @@ def evaluate_split(loader, evaluator, model, cfg, tiou_for_acc):
     ev = evaluator.evaluate(df, verbose=False)
     mAP, avg_mAP = ev[0], ev[1]
     acc = classification_accuracy(evaluator, raw, tiou=tiou_for_acc)
-    return {
+    out = {
         "avg_mAP": float(avg_mAP) * 100,
         "mAP_per_tiou": [float(x) * 100 for x in np.atleast_1d(mAP)],
         "cls_acc": float(acc) * 100,
     }
+
+    # Per-class AP, shape [n_tiou, n_classes]. ActionFormer-style evaluators keep
+    # it in `.ap` after evaluate(); otherwise recompute it with the wrapper.
+    ap = getattr(evaluator, "ap", None)
+    if ap is None and hasattr(evaluator, "wrapper_compute_average_precision"):
+        ap = evaluator.wrapper_compute_average_precision(df)
+    if ap is not None:
+        ap = np.asarray(ap, dtype=float) * 100
+        out["ap_per_class_tiou"] = ap.tolist()
+        out["ap_per_class"] = ap.mean(axis=0).tolist()  # averaged over tIoU thresholds
+    return out
+
+
+def class_names(evaluator, n):
+    """Class names ordered by class index (falls back to class_0, class_1, ...)."""
+    idx = getattr(evaluator, "activity_index", None)
+    if isinstance(idx, dict) and len(idx) == n:
+        names = [None] * n
+        for name, i in idx.items():
+            names[int(i)] = str(name)
+        if all(names):
+            return names
+    return [f"class_{i}" for i in range(n)]
 
 
 def load_weights(model, ckpt_path, use_ema):
@@ -158,19 +181,32 @@ def load_weights(model, ckpt_path, use_ema):
 # ---------------------------------------------------------------------------
 # plotting
 # ---------------------------------------------------------------------------
-def make_plots(results, tious, out_dir):
+SPLITS = ("train", "test", "unseen")
+
+
+def present_splits(results):
+    """Splits that have data in at least one epoch (keeps old caches working)."""
+    return [s for s in SPLITS if any(s in r for r in results.values())]
+
+
+def make_plots(results, tious, out_dir, classes=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    epochs = sorted(int(e) for e in results)
-    get = lambda split, f: [results[str(e)][split][f] for e in epochs]
+    splits = present_splits(results)
+
+    def series(split, getter):
+        eps = sorted(int(e) for e in results if split in results[e])
+        return eps, [getter(results[str(e)][split]) for e in eps]
 
     # 1. average mAP
     plt.figure(figsize=(8, 5))
-    plt.plot(epochs, get("train", "avg_mAP"), "-o", label="train")
-    plt.plot(epochs, get("test", "avg_mAP"), "-o", label="test")
+    for s in splits:
+        eps, ys = series(s, lambda r: r["avg_mAP"])
+        plt.plot(eps, ys, "-o", label=s)
     plt.xlabel("epoch"); plt.ylabel("average mAP (%)"); plt.grid(alpha=.3); plt.legend()
+    plt.ylim(0, 100)
     plt.title("Average mAP per epoch")
     plt.tight_layout(); plt.savefig(os.path.join(out_dir, "avg_mAP.png"), dpi=150); plt.close()
 
@@ -180,10 +216,11 @@ def make_plots(results, tious, out_dir):
     fig, axes = plt.subplots(rows, cols, figsize=(4.2 * cols, 3.4 * rows), squeeze=False)
     for i, t in enumerate(tious):
         ax = axes[i // cols][i % cols]
-        tr = [results[str(e)]["train"]["mAP_per_tiou"][i] for e in epochs]
-        te = [results[str(e)]["test"]["mAP_per_tiou"][i] for e in epochs]
-        ax.plot(epochs, tr, label="train"); ax.plot(epochs, te, label="test")
+        for s in splits:
+            eps, ys = series(s, lambda r: r["mAP_per_tiou"][i])
+            ax.plot(eps, ys, label=s)
         ax.set_title(f"mAP @ tIoU {t:g}"); ax.grid(alpha=.3)
+        ax.set_ylim(0, 100)
         if i == 0:
             ax.legend()
     for j in range(n, rows * cols):
@@ -191,28 +228,53 @@ def make_plots(results, tious, out_dir):
     fig.supxlabel("epoch"); fig.supylabel("mAP (%)")
     fig.tight_layout(); fig.savefig(os.path.join(out_dir, "mAP_per_tiou.png"), dpi=150); plt.close(fig)
 
+    # 4. per-class mAP (averaged over tIoU thresholds), one panel per class
+    if classes and any("ap_per_class" in results[e].get(s, {}) for e in results for s in splits):
+        n = len(classes)
+        cols = min(n, 4); rows = int(np.ceil(n / cols))
+        fig, axes = plt.subplots(rows, cols, figsize=(4.2 * cols, 3.4 * rows), squeeze=False)
+        for i, name in enumerate(classes):
+            ax = axes[i // cols][i % cols]
+            for s in splits:
+                eps = sorted(int(e) for e in results if "ap_per_class" in results[e].get(s, {}))
+                ys = [results[str(e)][s]["ap_per_class"][i] for e in eps]
+                ax.plot(eps, ys, label=s)
+            ax.set_title(name, fontsize=10); ax.set_ylim(0, 100); ax.grid(alpha=.3)
+            if i == 0:
+                ax.legend()
+        for j in range(n, rows * cols):
+            axes[j // cols][j % cols].axis("off")
+        fig.supxlabel("epoch"); fig.supylabel("mAP averaged over tIoU (%)")
+        fig.tight_layout(); fig.savefig(os.path.join(out_dir, "mAP_per_class.png"), dpi=150); plt.close(fig)
+
     # 3. classification accuracy
     plt.figure(figsize=(8, 5))
-    plt.plot(epochs, get("train", "cls_acc"), "-o", label="train")
-    plt.plot(epochs, get("test", "cls_acc"), "-o", label="test")
+    for s in splits:
+        eps, ys = series(s, lambda r: r["cls_acc"])
+        plt.plot(eps, ys, "-o", label=s)
     plt.xlabel("epoch"); plt.ylabel("top-1 action accuracy (%)"); plt.grid(alpha=.3); plt.legend()
+    plt.ylim(0, 100)
     plt.title("Action-level classification accuracy per epoch")
     plt.tight_layout(); plt.savefig(os.path.join(out_dir, "cls_accuracy.png"), dpi=150); plt.close()
 
 
 def write_csv(results, tious, path):
     epochs = sorted(int(e) for e in results)
+    splits = present_splits(results)
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         head = ["epoch"]
-        for s in ("train", "test"):
+        for s in splits:
             head += [f"{s}_avg_mAP", f"{s}_cls_acc"] + [f"{s}_mAP@{t:g}" for t in tious]
         w.writerow(head)
         for e in epochs:
             row = [e]
-            for s in ("train", "test"):
-                r = results[str(e)][s]
-                row += [r["avg_mAP"], r["cls_acc"]] + r["mAP_per_tiou"]
+            for s in splits:
+                r = results[str(e)].get(s)
+                if r is None:
+                    row += [""] * (2 + len(tious))
+                else:
+                    row += [r["avg_mAP"], r["cls_acc"]] + r["mAP_per_tiou"]
             w.writerow(row)
 
 
@@ -226,6 +288,7 @@ def main():
     p.add_argument("--out_dir", type=str, default=None)
     p.add_argument("--train_split_key", type=str, default="train_split", help="cfg key for the train split")
     p.add_argument("--test_split_key", type=str, default="val_split", help="cfg key for the test split")
+    p.add_argument("--unseen_split_key", type=str, default="unseen_split", help="cfg key for the unseen split")
     p.add_argument("--every", type=int, default=1, help="evaluate every Nth epoch")
     p.add_argument("--first", type=int, default=0)
     p.add_argument("--last", type=int, default=-1)
@@ -255,38 +318,54 @@ def main():
         cudnn.deterministic = True
         fix_random_seed(0, include_cuda=True)
 
-        train_ds, train_loader = build_loader(cfg, args.train_split_key)
-        test_ds, test_loader = build_loader(cfg, args.test_split_key)
-        train_eval = build_evaluator(train_ds)
-        test_eval = build_evaluator(test_ds)
-        cache["tious"] = [float(t) for t in test_ds.get_attributes()["tiou_thresholds"]]
-
+        split_keys = {
+            "train": args.train_split_key,
+            "test": args.test_split_key,
+            "unseen": args.unseen_split_key,
+        }
+        loaders = {}  # name -> (loader, evaluator)
+        for name, key in split_keys.items():
+            if key not in cfg:
+                print(f"WARNING: '{key}' not in config, skipping the {name} split")
+                continue
+            ds, loader = build_loader(cfg, key)
+            loaders[name] = (loader, build_evaluator(ds))
+            if name == "test" or "tious" not in cache or not cache["tious"]:
+                cache["tious"] = [float(t) for t in ds.get_attributes()["tiou_thresholds"]]
         model = make_meta_arch(cfg["model_name"], **cfg["model"])
         model = nn.DataParallel(model, device_ids=cfg["devices"])
 
         for ck in ckpts:
             ep = str(epoch_of(ck))
-            if ep in cache["results"]:
+            r = cache["results"].setdefault(ep, {})
+            # evaluate splits not yet cached, or cached before per-class AP was recorded
+            todo = [s for s in loaders
+                    if s not in r or ("ap_per_class" not in r[s] and not cache.get("no_per_class"))]
+            if not todo:
                 print(f"epoch {ep}: cached, skipping")
                 continue
             t0 = time.time()
             key = load_weights(model, ck, use_ema=not args.no_ema)
-            cache["results"][ep] = {
-                "weights": key,
-                "train": evaluate_split(train_loader, train_eval, model, cfg, args.acc_tiou),
-                "test": evaluate_split(test_loader, test_eval, model, cfg, args.acc_tiou),
-            }
-            r = cache["results"][ep]
-            print(f"epoch {ep:>3} [{key}] | train mAP {r['train']['avg_mAP']:.2f} "
-                  f"acc {r['train']['cls_acc']:.2f} | test mAP {r['test']['avg_mAP']:.2f} "
-                  f"acc {r['test']['cls_acc']:.2f} | {time.time() - t0:.0f}s")
+            r["weights"] = key
+            for s in todo:
+                loader, evaluator = loaders[s]
+                r[s] = evaluate_split(loader, evaluator, model, cfg, args.acc_tiou)
+                if "ap_per_class" in r[s]:
+                    if not cache.get("classes"):
+                        cache["classes"] = class_names(evaluator, len(r[s]["ap_per_class"]))
+                else:
+                    cache["no_per_class"] = True
+                    print("WARNING: evaluator exposes no per-class AP; skipping per-class graph")
+            summary = " | ".join(
+                f"{s} mAP {r[s]['avg_mAP']:.2f} acc {r[s]['cls_acc']:.2f}" for s in SPLITS if s in r)
+            print(f"epoch {ep:>3} [{key}] | {summary} | {time.time() - t0:.0f}s")
             with open(res_path, "w") as f:  # save after every epoch so a crash loses nothing
                 json.dump(cache, f, indent=2)
 
     if not cache["results"]:
         raise SystemExit("No results to plot.")
     write_csv(cache["results"], cache["tious"], os.path.join(out_dir, "results.csv"))
-    make_plots(cache["results"], cache["tious"], out_dir)
+    make_plots(cache["results"], cache["tious"], out_dir, cache.get("classes"))
     print(f"Done. Outputs in {out_dir}")
 
 
