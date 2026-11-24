@@ -5,3 +5,6 @@ libs/utils/__pycache__/
 libs/core/__pycache__/
 libs/modeling/__pycache__/
 libs/utils/build/*
+
+data/driving.json
+configs/driving.yaml
