@@ -70,7 +70,7 @@ for augmented_sequence_name in augmented_sequence_names:
     plt.plot(blink_frames, label="Blink")
     plt.plot(fidgeting_frames, label="Fidgeting")
     plt.plot(yawn_frames, label="Yawn")
-    # plt.plot(gaze_fixations, label="Gaze Fixation")
+    plt.plot(gaze_fixations, label="Gaze Fixation")
     plt.plot(microsleep_frames, label="Microsleep")
     plt.plot(head_nod_frames, label="Head Nod")
     plt.title("Blink Events")
